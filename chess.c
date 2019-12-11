@@ -1,171 +1,811 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
+#include <locale.h>
 
-#define PAWN   1
-#define TOWER  2
-#define KNIGHT 3
-#define BISHOP 4
-#define QUEEN  5
-#define KING   6
+#include <termios.h>
+#include <unistd.h>
+#include <assert.h>
 
-#define BLACK  1
-#define WHITE  0
+#define PAWN          1
+#define ROOK          2
+#define KNIGHT        3
+#define BISHOP        4
+#define QUEEN         5
+#define KING          6
 
-typedef struct piece {
+#define BLACK         1
+#define WHITE         0
+
+#define BLOCK         0
+#define FREE          1
+#define CAPTURE       2
+
+#define EMPTY         0x2003
+
+#define COLOR_RED     "\x1b[31m"
+#define COLOR_GREEN   "\x1b[32m"
+#define COLOR_YELLOW  "\x1b[33m"
+#define COLOR_BLUE    "\x1b[34m"
+#define COLOR_MAGENTA "\x1b[35m"
+#define COLOR_CYAN    "\x1b[36m"
+#define COLOR_WHITE   "\x1B[37m"
+#define COLOR_RESET   "\x1b[0m"
+
+struct piece {
     int type;
     int color;
     int line;
     int col;
 
+    int initial_line;
+    int initial_col;
+
     int in_table;
-} Piece;
 
-Piece *initialize(int table[][8]) {
+    wchar_t unicode;
 
-    Piece *pieces = (Piece*) malloc (32 * sizeof(Piece));
+    struct piece *next;
+};
 
+typedef struct piece Piece;
+
+int getch() {
+      int c = 0;
+
+      struct termios org_opts, new_opts;
+      int res=0;
+      //-----  store old settings -----------
+      res=tcgetattr(STDIN_FILENO, &org_opts);
+      assert(res==0);
+      //---- set new terminal parms --------
+      memcpy(&new_opts, &org_opts, sizeof(new_opts));
+      new_opts.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHOK | ECHONL | ECHOPRT | ECHOKE | ICRNL);
+      tcsetattr(STDIN_FILENO, TCSANOW, &new_opts);
+      c=getchar();
+      //------  restore old settings ---------
+      res=tcsetattr(STDIN_FILENO, TCSANOW, &org_opts);
+      assert(res==0);
+
+      return(c);
+}
+
+Piece *initialize(wchar_t table[][8]) {
+
+    Piece **pieces = (Piece**) malloc (32 * sizeof(Piece*));
+    for (int i = 0; i < 32; ++i) {
+        pieces[i] = (Piece*) malloc (sizeof(Piece));
+    }
+    //Piece *fp      = pieces[0];
+
+    // Creating Table
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
-            table[i][j] = 0;
+            table[i][j] = EMPTY;
         }
     }
 
     // Creating Pawns
     for (int i = 0; i < 16; ++i) {
-        pieces[i].type     = PAWN;
-        pieces[i].color    = i/8;
-        pieces[i].line     = (i/8)*5 + 1;
-        pieces[i].col      = i % 8;
-        pieces[i].in_table = 1;
+        Piece *fp = pieces[i];
+
+        fp->type         = PAWN;
+        fp->color        = i/8;
+        fp->line         = (i/8)*5 + 1;
+        fp->col          = i % 8;
+        fp->initial_line = fp->line;
+        fp->initial_col  = fp->col;
+        fp->in_table     = 1; // >>> here
+        fp->unicode      = fp->color == BLACK ? 0x265F : 0x2659;
+        fp->next         = NULL;
+
+        if (i > 0) {
+            Piece *ant = pieces[i-1];
+            ant->next  = fp;
+        }
     }
 
-    // Creating Towers
-    pieces[16].type     = TOWER;
-    pieces[16].color    = WHITE;
-    pieces[16].line     = 0;
-    pieces[16].col      = 0;
-    pieces[16].in_table = 1;
+    // Creating ROOKs
+    pieces[16]->type         = ROOK;
+    pieces[16]->color        = WHITE;
+    pieces[16]->line         = 0;
+    pieces[16]->col          = 0;
+    pieces[16]->initial_line = pieces[16]->line;
+    pieces[16]->initial_col  = pieces[16]->col;
+    pieces[16]->in_table     = 1;
+    pieces[16]->unicode      = 0x2656;
+    pieces[15]->next         = pieces[16];
 
-    pieces[17].type     = TOWER;
-    pieces[17].color    = BLACK;
-    pieces[17].line     = 7;
-    pieces[17].col      = 0;
-    pieces[17].in_table = 1;
+    pieces[17]->type         = ROOK;
+    pieces[17]->color        = BLACK;
+    pieces[17]->line         = 7;
+    pieces[17]->col          = 0;
+    pieces[17]->initial_line = pieces[17]->line;
+    pieces[17]->initial_col  = pieces[17]->col;
+    pieces[17]->in_table     = 1;
+    pieces[17]->unicode      = 0x265C;
+    pieces[16]->next         = pieces[17];
 
-    pieces[18].type     = TOWER;
-    pieces[18].color    = WHITE;
-    pieces[18].line     = 0;
-    pieces[18].col      = 7;
-    pieces[18].in_table = 1;
+    pieces[18]->type         = ROOK;
+    pieces[18]->color        = WHITE;
+    pieces[18]->line         = 0;
+    pieces[18]->col          = 7;
+    pieces[18]->initial_line = pieces[18]->line;
+    pieces[18]->initial_col  = pieces[18]->col;
+    pieces[18]->in_table     = 1;
+    pieces[18]->unicode      = 0x2656;
+    pieces[17]->next         = pieces[18];
 
-    pieces[19].type     = TOWER;
-    pieces[19].color    = BLACK;
-    pieces[19].line     = 7;
-    pieces[19].col      = 7;
-    pieces[19].in_table = 1;
+    pieces[19]->type         = ROOK;
+    pieces[19]->color        = BLACK;
+    pieces[19]->line         = 7;
+    pieces[19]->col          = 7;
+    pieces[19]->initial_line = pieces[19]->line;
+    pieces[19]->initial_col  = pieces[19]->col;
+    pieces[19]->in_table     = 1;
+    pieces[19]->unicode      = 0x265C;
+    pieces[18]->next         = pieces[19];
 
     // Creating Knights
-    pieces[20].type     = KNIGHT;
-    pieces[20].color    = WHITE;
-    pieces[20].line     = 0;
-    pieces[20].col      = 1;
-    pieces[20].in_table = 1;
+    pieces[20]->type         = KNIGHT;
+    pieces[20]->color        = WHITE;
+    pieces[20]->line         = 0;
+    pieces[20]->col          = 1;
+    pieces[20]->initial_line = pieces[20]->line;
+    pieces[20]->initial_col  = pieces[20]->col;
+    pieces[20]->in_table     = 1;
+    pieces[20]->unicode      = 0x2658;
+    pieces[19]->next         = pieces[20];
 
-    pieces[21].type     = KNIGHT;
-    pieces[21].color    = BLACK;
-    pieces[21].line     = 7;
-    pieces[21].col      = 1;
-    pieces[21].in_table = 1;
+    pieces[21]->type         = KNIGHT;
+    pieces[21]->color        = BLACK;
+    pieces[21]->line         = 7;
+    pieces[21]->col          = 1;
+    pieces[21]->initial_line = pieces[21]->line;
+    pieces[21]->initial_col  = pieces[21]->col;
+    pieces[21]->in_table     = 1;
+    pieces[21]->unicode      = 0x265E;
+    pieces[20]->next         = pieces[21];
 
-    pieces[22].type     = KNIGHT;
-    pieces[22].color    = WHITE;
-    pieces[22].line     = 0;
-    pieces[22].col      = 6;
-    pieces[22].in_table = 1;
+    pieces[22]->type         = KNIGHT;
+    pieces[22]->color        = WHITE;
+    pieces[22]->line         = 0;
+    pieces[22]->col          = 6;
+    pieces[22]->initial_line = pieces[22]->line;
+    pieces[22]->initial_col  = pieces[22]->col;
+    pieces[22]->in_table     = 1;
+    pieces[22]->unicode      = 0x2658;
+    pieces[21]->next         = pieces[22];
 
-    pieces[23].type     = KNIGHT;
-    pieces[23].color    = BLACK;
-    pieces[23].line     = 7;
-    pieces[23].col      = 6;
-    pieces[23].in_table = 1;
+    pieces[23]->type         = KNIGHT;
+    pieces[23]->color        = BLACK;
+    pieces[23]->line         = 7;
+    pieces[23]->col          = 6;
+    pieces[23]->initial_line = pieces[23]->line;
+    pieces[23]->initial_col  = pieces[23]->col;
+    pieces[23]->in_table     = 1;
+    pieces[23]->unicode      = 0x265E;
+    pieces[22]->next         = pieces[23];
 
     // Creating Bishops
-    pieces[24].type     = BISHOP;
-    pieces[24].color    = WHITE;
-    pieces[24].line     = 0;
-    pieces[24].col      = 2;
-    pieces[24].in_table = 1;
+    pieces[24]->type         = BISHOP;
+    pieces[24]->color        = WHITE;
+    pieces[24]->line         = 0;
+    pieces[24]->col          = 2;
+    pieces[24]->initial_line = pieces[24]->line;
+    pieces[24]->initial_col  = pieces[24]->col;
+    pieces[24]->in_table     = 1;
+    pieces[24]->unicode      = 0x2657;
+    pieces[23]->next         = pieces[24];
 
-    pieces[25].type     = BISHOP;
-    pieces[25].color    = BLACK;
-    pieces[25].line     = 7;
-    pieces[25].col      = 2;
-    pieces[25].in_table = 1;
+    pieces[25]->type         = BISHOP;
+    pieces[25]->color        = BLACK;
+    pieces[25]->line         = 7;
+    pieces[25]->col          = 2;
+    pieces[25]->initial_line = pieces[25]->line;
+    pieces[25]->initial_col  = pieces[25]->col;
+    pieces[25]->in_table     = 1;
+    pieces[25]->unicode      = 0x265D;
+    pieces[24]->next         = pieces[25];
 
-    pieces[26].type     = BISHOP;
-    pieces[26].color    = WHITE;
-    pieces[26].line     = 0;
-    pieces[26].col      = 5;
-    pieces[26].in_table = 1;
+    pieces[26]->type         = BISHOP;
+    pieces[26]->color        = WHITE;
+    pieces[26]->line         = 0;
+    pieces[26]->col          = 5;
+    pieces[26]->initial_line = pieces[26]->line;
+    pieces[26]->initial_col  = pieces[26]->col;
+    pieces[26]->in_table     = 1;
+    pieces[26]->unicode      = 0x2657;
+    pieces[25]->next         = pieces[26];
 
-    pieces[27].type     = BISHOP;
-    pieces[27].color    = BLACK;
-    pieces[27].line     = 7;
-    pieces[27].col      = 5;
-    pieces[27].in_table = 1;
+    pieces[27]->type         = BISHOP;
+    pieces[27]->color        = BLACK;
+    pieces[27]->line         = 7;
+    pieces[27]->col          = 5;
+    pieces[27]->initial_line = pieces[27]->line;
+    pieces[27]->initial_col  = pieces[27]->col;
+    pieces[27]->in_table     = 1;
+    pieces[27]->unicode      = 0x265D;
+    pieces[26]->next         = pieces[27];
 
     // Creating Queens
-    pieces[28].type     = QUEEN;
-    pieces[28].color    = WHITE;
-    pieces[28].line     = 0;
-    pieces[28].col      = 3;
-    pieces[28].in_table = 1;
+    pieces[28]->type         = QUEEN;
+    pieces[28]->color        = WHITE;
+    pieces[28]->line         = 0;
+    pieces[28]->col          = 3;
+    pieces[28]->initial_line = pieces[28]->line;
+    pieces[28]->initial_col  = pieces[28]->col;
+    pieces[28]->in_table     = 1;
+    pieces[28]->unicode      = 0x2655;
+    pieces[27]->next         = pieces[28];
 
-    pieces[29].type     = QUEEN;
-    pieces[29].color    = BLACK;
-    pieces[29].line     = 7;
-    pieces[29].col      = 3;
-    pieces[29].in_table = 1;
+    pieces[29]->type         = QUEEN;
+    pieces[29]->color        = BLACK;
+    pieces[29]->line         = 7;
+    pieces[29]->col          = 3;
+    pieces[29]->initial_line = pieces[29]->line;
+    pieces[29]->initial_col  = pieces[29]->col;
+    pieces[29]->in_table     = 1;
+    pieces[29]->unicode      = 0x265B;
+    pieces[28]->next         = pieces[29];
 
     // Creating Kings
-    pieces[30].type     = KING;
-    pieces[30].color    = WHITE;
-    pieces[30].line     = 0;
-    pieces[30].col      = 4;
-    pieces[30].in_table = 1;
+    pieces[30]->type         = KING;
+    pieces[30]->color        = WHITE;
+    pieces[30]->line         = 0;
+    pieces[30]->col          = 4;
+    pieces[30]->initial_line = pieces[30]->line;
+    pieces[30]->initial_col  = pieces[30]->col;
+    pieces[30]->in_table     = 1;
+    pieces[30]->unicode      = 0x2654;
+    pieces[29]->next         = pieces[30];
 
-    pieces[31].type     = KING;
-    pieces[31].color    = BLACK;
-    pieces[31].line     = 7;
-    pieces[31].col      = 4;
-    pieces[31].in_table = 1;
+    pieces[31]->type         = KING;
+    pieces[31]->color        = BLACK;
+    pieces[31]->line         = 7;
+    pieces[31]->col          = 4;
+    pieces[31]->initial_line = pieces[31]->line;
+    pieces[31]->initial_col  = pieces[31]->col;
+    pieces[31]->in_table     = 1;
+    pieces[31]->unicode      = 0x265A;
+    pieces[30]->next         = pieces[31];
 
-    return pieces;
+    Piece *fp = pieces[0];
+    return fp;
 
 }
 
-void print_table(int table[][8], Piece *pieces) {
-
-    for (int i = 0; i < 32; ++i) {
-        if (pieces[i].in_table == 1) {
-            table[pieces[i].line][pieces[i].col] = pieces[i].type;
-        }
-    }
-
+void clear_table(wchar_t table[][8]) {
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
-            printf("%d ", table[i][j]);
+            table[i][j] = EMPTY;
         }
-        printf("\n");
     }
+}
+
+void print_table(wchar_t table[][8], Piece *fp, int **possible_moves) {
+
+    while (system("clear"));
+    setlocale(LC_CTYPE, "");
+    clear_table(table);
+
+    Piece *p = fp;
+
+    while (p) {
+        if (p->in_table == 1) {
+            table[p->line][p->col] = p->unicode;
+        }
+
+        p = p->next;
+    }
+
+    if (possible_moves) {
+        int i = 0;
+        while (i < 21 && possible_moves[i][0] != -1) {
+            table[possible_moves[i][0]][possible_moves[i][1]] = 0x2605;
+            ++i;
+        }
+    }
+    for (int i = 7; i > -1; --i) {
+        for (int j = 0; j < 8; ++j)
+            if ((i+j) % 2 == 1) wprintf(COLOR_WHITE L"|%lc%lc%lc%lc|", 0x203E, 0x203E, 0x203E, 0x203E);
+            else                wprintf(COLOR_GREEN L"|%lc%lc%lc%lc|", 0x203E, 0x203E, 0x203E, 0x203E);
+        wprintf(L"\n");
+
+        for (int j = 0; j < 8; ++j) {
+            if ((i+j) % 2 == 1) wprintf(COLOR_WHITE L"| ");
+            else                wprintf(COLOR_GREEN L"| ");
+            wprintf(COLOR_RESET L"%lc", table[i][j]);
+            if ((i+j) % 2 == 1) wprintf(COLOR_WHITE L"  |");
+            else                wprintf(COLOR_GREEN L"  |");
+        }
+        wprintf(L"\n");
+
+        for (int j = 0; j < 8; ++j)
+            if ((i+j) % 2 == 1) wprintf(COLOR_WHITE L"|____|");
+            else                wprintf(COLOR_GREEN L"|____|");
+        wprintf(L"\n");
+    }
+    /*
+    for (int i = 7; i > -1; --i) {
+        if (i%2 == 1) wprintf(COLOR_WHITE L" %lc%lc%lc%lc", 0x203E, 0x203E, 0x203E, 0x203E);
+        else          wprintf(COLOR_GREEN L" %lc%lc%lc%lc", 0x203E, 0x203E, 0x203E, 0x203E);
+    }
+    wprintf(L"\n");
+    */
+
+}
+
+int game_over(wchar_t table[][8]) {
+    // Implement Check Mate verification
+
+    return 0;
+}
+
+Piece *select_piece(wchar_t table[][8], Piece *fp, int turn) {
+
+    int *selected_house = (int*) malloc (2 * sizeof(int));
+
+    char str_turn[6] = "white";
+    if (turn == BLACK) strcpy(str_turn,"black");
+
+    wprintf(L"Type the line and column of the selected piece: <line column>\n");
+    while (scanf("%d %d",&selected_house[0],&selected_house[1]) <= 0);
+    while (1) {
+        while (selected_house[0] < 0 || selected_house[0] > 7 ||
+               selected_house[1] < 0 || selected_house[1] > 7 ||
+               table[selected_house[0]][selected_house[1]] == EMPTY) {
+            print_table(table,fp,NULL);
+            wprintf(L"Invalid house. Try again: <line column>\n");
+            while (scanf("%d %d",&selected_house[0],&selected_house[1]) <= 0);
+        }
+
+        Piece *p = fp;
+        while (p) {
+            if (p->in_table                  &&
+                p->line == selected_house[0] &&
+                p->col  == selected_house[1]) {
+                return p;
+            }
+            p = p->next;
+        }
+
+        print_table(table,fp,NULL);
+        wprintf(L"It's %s turn. Try again: <line column>\n", str_turn);
+        while (scanf("%d %d",&selected_house[0],&selected_house[1]) <= 0);
+    }
+
+}
+
+int verify_house_status(Piece *fp, int line, int col, int color) {
+    Piece *p = fp;
+
+    if (line < 0 || col < 0 || line > 7 || col > 7) return BLOCK;
+
+    while (p) {
+        if (p->in_table == 1 && p->line == line && p->col == col) {
+            if (p->color != color) return CAPTURE;
+            return BLOCK;
+        }
+        p = p->next;
+    }
+
+    return FREE;
+}
+
+int **calculate_possible_moves(Piece *p, wchar_t table[][8], Piece *fp) {
+
+    int **possible_moves = (int**) malloc (21 * sizeof(int*));
+    for (int i = 0; i < 22; ++i) {
+        possible_moves[i] = (int*) malloc (2 * sizeof(int));
+    }
+
+    int count = 0;
+    if (p->type == PAWN) {
+        if (p->color == WHITE && p->line < 7) {
+            int status_one_hop = verify_house_status(fp, p->line + 1, p->col, p->color);
+            if (status_one_hop != BLOCK) {
+                possible_moves[count][0]   = p->line + 1;
+                possible_moves[count++][1] = p->col;
+
+                int status_two_hops = verify_house_status(fp, p->line + 2, p->col, p->color);
+                if (p->line == p->initial_line && status_two_hops != BLOCK) {
+                    possible_moves[count][0]   = p->line + 2;
+                    possible_moves[count++][1] = p->col;
+                }
+            }
+        }
+        else if (p->color == BLACK && p->line > 0) {
+            int status_one_hop = verify_house_status(fp, p->line - 1, p->col, p->color);
+            if (status_one_hop != BLOCK) {
+                possible_moves[count][0]   = p->line - 1;
+                possible_moves[count++][1] = p->col;
+
+                int status_two_hops = verify_house_status(fp, p->line - 2, p->col, p->color);
+                if (p->line == p->initial_line && status_two_hops != BLOCK) {
+                    possible_moves[count][0]   = p->line - 2;
+                    possible_moves[count++][1] = p->col;
+                }
+            }
+        }
+    }
+
+    else if (p->type == ROOK) {
+        int line = p->line - 1;
+        while (line > -1) {
+            int house_status = verify_house_status(fp, line, p->col, p->color);
+            if (house_status != BLOCK) {
+                possible_moves[count][0] = line--;
+                possible_moves[count++][1] = p->col;
+            }
+
+            if (house_status == BLOCK || house_status == CAPTURE) break;
+        }
+
+        line = p->line + 1;
+        while (line < 8) {
+            int house_status = verify_house_status(fp, line, p->col, p->color);
+            if (house_status != BLOCK) {
+                possible_moves[count][0] = line++;
+                possible_moves[count++][1] = p->col;
+            }
+
+            if (house_status == BLOCK || house_status == CAPTURE) break;
+        }
+
+        int col = p->col - 1;
+        while (col > -1) {
+            int house_status = verify_house_status(fp, p->line, col, p->color);
+            if (house_status != BLOCK) {
+                possible_moves[count][0] = p->line;
+                possible_moves[count++][1] = col--;
+            }
+
+            if (house_status == BLOCK || house_status == CAPTURE) break;
+        }
+
+        col = p->col + 1;
+        while (col < 8) {
+            int house_status = verify_house_status(fp, p->line, col, p->color);
+            if (house_status != BLOCK) {
+                possible_moves[count][0] = p->line;
+                possible_moves[count++][1] = col++;
+            }
+
+            if (house_status == BLOCK || house_status == CAPTURE) break;
+        }
+    }
+
+    else if (p->type == KNIGHT) {
+        int line = p->line + 2;
+        int col  = p->col  + 1;
+        int house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0] = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line + 2;
+        col  = p->col  - 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0] = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line + 1;
+        col  = p->col  + 2;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0] = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line + 1;
+        col  = p->col  - 2;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0] = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line - 2;
+        col  = p->col  + 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0] = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line - 2;
+        col  = p->col  - 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0] = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line - 1;
+        col  = p->col  + 2;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0] = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line - 1;
+        col  = p->col  - 2;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0] = line;
+            possible_moves[count++][1] = col;
+        }
+
+    }
+
+    else if (p->type == BISHOP) {
+        int line = p->line + 1;
+        int col  = p->col  + 1;
+        int house_status = verify_house_status(fp, line, col, p->color);
+        while (line < 8 && col < 8 && house_status != BLOCK) {
+            possible_moves[count][0]   = line++;
+            possible_moves[count++][1] = col++;
+            house_status = verify_house_status(fp, line, col, p->color);
+        }
+
+        line = p->line + 1;
+        col  = p->col  - 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        while (line < 8 && col > -1 && house_status != BLOCK) {
+            possible_moves[count][0]   = line++;
+            possible_moves[count++][1] = col--;
+            house_status = verify_house_status(fp, line, col, p->color);
+        }
+
+        line = p->line - 1;
+        col  = p->col  - 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        while (line > -1 && col > -1 && house_status != BLOCK) {
+            possible_moves[count][0]   = line--;
+            possible_moves[count++][1] = col--;
+            house_status = verify_house_status(fp, line, col, p->color);
+        }
+
+        line = p->line - 1;
+        col  = p->col  + 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        while (line > -1 && col < 8 && house_status != BLOCK) {
+            possible_moves[count][0]   = line--;
+            possible_moves[count++][1] = col++;
+            house_status = verify_house_status(fp, line, col, p->color);
+        }
+    }
+
+    else if (p->type == QUEEN) {
+        int line = p->line + 1;
+        int col  = p->col  + 1;
+        int house_status = verify_house_status(fp, line, col, p->color);
+        while (line < 8 && col < 8 && house_status != BLOCK) {
+            possible_moves[count][0]   = line++;
+            possible_moves[count++][1] = col++;
+            house_status = verify_house_status(fp, line, col, p->color);
+        }
+
+        line = p->line + 1;
+        col  = p->col  - 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        while (line < 8 && col > -1 && house_status != BLOCK) {
+            possible_moves[count][0]   = line++;
+            possible_moves[count++][1] = col--;
+            house_status = verify_house_status(fp, line, col, p->color);
+        }
+
+        line = p->line - 1;
+        col  = p->col  - 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        while (line > -1 && col > -1 && house_status != BLOCK) {
+            possible_moves[count][0]   = line--;
+            possible_moves[count++][1] = col--;
+            house_status = verify_house_status(fp, line, col, p->color);
+        }
+
+        line = p->line - 1;
+        col  = p->col  + 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        while (line > -1 && col < 8 && house_status != BLOCK) {
+            possible_moves[count][0]   = line--;
+            possible_moves[count++][1] = col++;
+            house_status = verify_house_status(fp, line, col, p->color);
+        }
+
+        line = p->line - 1;
+        while (line > -1) {
+            house_status = verify_house_status(fp, line, p->col, p->color);
+            if (house_status != BLOCK) {
+                possible_moves[count][0] = line--;
+                possible_moves[count++][1] = p->col;
+            }
+
+            if (house_status == BLOCK || house_status == CAPTURE) break;
+        }
+
+        line = p->line + 1;
+        while (line < 8) {
+            house_status = verify_house_status(fp, line, p->col, p->color);
+            if (house_status != BLOCK) {
+                possible_moves[count][0] = line++;
+                possible_moves[count++][1] = p->col;
+            }
+
+            if (house_status == BLOCK || house_status == CAPTURE) break;
+        }
+
+        col = p->col - 1;
+        while (col > -1) {
+            house_status = verify_house_status(fp, p->line, col, p->color);
+            if (house_status != BLOCK) {
+                possible_moves[count][0] = p->line;
+                possible_moves[count++][1] = col--;
+            }
+
+            if (house_status == BLOCK || house_status == CAPTURE) break;
+        }
+
+        col = p->col + 1;
+        while (col < 8) {
+            house_status = verify_house_status(fp, p->line, col, p->color);
+            if (house_status != BLOCK) {
+                possible_moves[count][0] = p->line;
+                possible_moves[count++][1] = col++;
+            }
+
+            if (house_status == BLOCK || house_status == CAPTURE) break;
+        }
+    }
+
+    else if (p->type == KING) {
+        int line = p->line - 1;
+        int col  = p->col  - 1;
+        int house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0]   = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line - 1;
+        col  = p->col;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0]   = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line - 1;
+        col  = p->col  + 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0]   = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line;
+        col  = p->col - 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0]   = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line;
+        col  = p->col + 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0]   = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line + 1;
+        col  = p->col  - 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0]   = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line + 1;
+        col  = p->col;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0]   = line;
+            possible_moves[count++][1] = col;
+        }
+
+        line = p->line + 1;
+        col  = p->col  + 1;
+        house_status = verify_house_status(fp, line, col, p->color);
+        if (house_status != BLOCK) {
+            possible_moves[count][0]   = line;
+            possible_moves[count++][1] = col;
+        }
+    }
+
+    possible_moves[count][0] = -1;
+    possible_moves[count][1] = -1;
+
+    //print_table(table, fp, possible_moves);
+
+    return possible_moves;
+
+}
+
+void move_piece(Piece *p, int **possible_moves, wchar_t table[][8], Piece *fp) {
+
+    int *selected_house = (int*) malloc (2 * sizeof(int));
+
+    print_table(table, fp, possible_moves);
+    wprintf(L"Select the destination house:\n");
+    while (scanf("%d %d",&selected_house[0],&selected_house[1]) <= 0);
+    int ok = 0;
+    while (!ok) {
+        if (selected_house[0] < 0 || selected_house[0] > 7 ||
+            selected_house[1] < 0 || selected_house[1] > 7 ||
+            table[selected_house[0]][selected_house[1]] == EMPTY) {
+            print_table(table, fp, possible_moves);
+            wprintf(L"Invalid house. Try again: <line column>\n");
+            while (scanf("%d %d",&selected_house[0],&selected_house[1]) <= 0);
+            continue;
+        }
+
+        int i = 0;
+        while (i < 22 && possible_moves[i][0] != -1) {
+            if (selected_house[0] == possible_moves[i][0] &&
+                selected_house[1] == possible_moves[i][1]) {
+                ok = 1;
+                break;
+            }
+            ++i;
+        }
+
+        if (!ok) {
+            print_table(table, fp, possible_moves);
+            wprintf(L"Invalid house. Try again: <line column>\n");
+            while (scanf("%d %d",&selected_house[0],&selected_house[1]) <= 0);
+        }
+    }
+
+    int status_house = verify_house_status(fp, selected_house[0], selected_house[1], p->color);
+    if (status_house == CAPTURE) {
+        Piece *ap = fp;
+        while (ap) {
+            if (ap->in_table && ap->line == selected_house[0] && ap->col == selected_house[1]) {
+                ap->in_table = 0;
+                break;
+            }
+            ap = ap->next;
+        }
+    }
+
+    p->line = selected_house[0];
+    p->col  = selected_house[1];
+
+    print_table(table, fp, NULL);
 
 }
 
 int main() {
 
-    int table[8][8];
-    Piece *pieces = initialize(table);
-    print_table(table, pieces);
+    wchar_t table[8][8];
+    Piece *fp = initialize(table);
+    print_table(table, fp, NULL);
+
+    int turn = WHITE;
+    while (!game_over(table)) {
+        Piece *selected_piece = select_piece(table, fp, turn);
+        int **possible_moves  = calculate_possible_moves(selected_piece, table, fp);
+        move_piece(selected_piece, possible_moves, table, fp);
+        turn = (turn + 1) % 2;
+    }
 
     return 0;
 
