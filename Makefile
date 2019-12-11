@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall -O3
+CFLAGS = -g -Wall -O3 -lncurses
 TARGET=chess
 
 all: $(TARGET)
