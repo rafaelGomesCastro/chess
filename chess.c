@@ -74,6 +74,17 @@ int getch() {
     return ch;
 }
 
+int **reset_possible_moves() {
+
+  int **possible_moves = (int**) malloc (21 * sizeof(int*));
+  for (int i = 0; i < 22; ++i) {
+      possible_moves[i] = (int*) malloc (2 * sizeof(int));
+  }
+  possible_moves[0][0] = -1;
+
+  return possible_moves;
+}
+
 Piece *initialize(wchar_t table[][8]) {
 
     Piece **pieces = (Piece**) malloc (32 * sizeof(Piece*));
@@ -301,13 +312,12 @@ void print_table(wchar_t table[][8], Piece *fp, int curr_house[2], int **possibl
         p = p->next;
     }
 
-    if (possible_moves) {
-        int i = 0;
-        while (i < 21 && possible_moves[i][0] != -1) {
-            table[possible_moves[i][0]][possible_moves[i][1]] = 0x2605;
-            ++i;
-        }
+    int i = 0;
+    while (i < 21 && possible_moves[i][0] != -1) {
+        table[possible_moves[i][0]][possible_moves[i][1]] = 0x2605;
+        ++i;
     }
+
     for (int i = 7; i > -1; --i) {
         for (int j = 0; j < 8; ++j) {
             if (curr_house[0] == i && curr_house[1] == j) {
@@ -388,7 +398,7 @@ Piece *select_piece(wchar_t table[][8], Piece *fp, int turn, int curr_house[2]) 
         else if (toupper(key) == 'A' && curr_house[1] > 0) curr_house[1] -= 1;
         else if (toupper(key) == 'D' && curr_house[1] < 7) curr_house[1] += 1;
 
-        print_table(table,fp,curr_house,NULL);
+        print_table(table,fp,curr_house,reset_possible_moves());
 
         key = getch();
     }
@@ -399,7 +409,7 @@ Piece *select_piece(wchar_t table[][8], Piece *fp, int turn, int curr_house[2]) 
     return p;
 }
 
-int verify_house_status(Piece *p, Piece *fp, int line, int col) {
+int check_house_status(Piece *p, Piece *fp, int line, int col) {
     Piece *ap = fp;
 
     if (line < 0 || col < 0 || line > 7 || col > 7) return BLOCK;
@@ -430,58 +440,55 @@ int verify_house_status(Piece *p, Piece *fp, int line, int col) {
 
 int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], Piece *fp) {
 
-    int **possible_moves = (int**) malloc (21 * sizeof(int*));
-    for (int i = 0; i < 22; ++i) {
-        possible_moves[i] = (int*) malloc (2 * sizeof(int));
-    }
+    int **possible_moves = reset_possible_moves();
 
     int count = 0;
     if (p->type == PAWN) {
         if (p->color == WHITE && p->line < 7) {
-            int status_one_hop = verify_house_status(p, fp, p->line + 1, p->col);
+            int status_one_hop = check_house_status(p, fp, p->line + 1, p->col);
             if (status_one_hop != BLOCK) {
                 possible_moves[count][0]   = p->line + 1;
                 possible_moves[count++][1] = p->col;
 
-                int status_two_hops = verify_house_status(p, fp, p->line + 2, p->col);
+                int status_two_hops = check_house_status(p, fp, p->line + 2, p->col);
                 if (p->line == p->initial_line && status_two_hops != BLOCK) {
                     possible_moves[count][0]   = p->line + 2;
                     possible_moves[count++][1] = p->col;
                 }
             }
 
-            int status_capture = verify_house_status(p, fp, p->line + 1, p->col + 1);
+            int status_capture = check_house_status(p, fp, p->line + 1, p->col + 1);
             if (status_capture == CAPTURE) {
                 possible_moves[count][0]   = p->line + 1;
                 possible_moves[count++][1] = p->col  + 1;
             }
 
-            status_capture = verify_house_status(p, fp, p->line + 1, p->col - 1);
+            status_capture = check_house_status(p, fp, p->line + 1, p->col - 1);
             if (status_capture == CAPTURE) {
                 possible_moves[count][0]   = p->line + 1;
                 possible_moves[count++][1] = p->col  - 1;
             }
         }
         else if (p->color == BLACK && p->line > 0) {
-            int status_one_hop = verify_house_status(p, fp, p->line - 1, p->col);
+            int status_one_hop = check_house_status(p, fp, p->line - 1, p->col);
             if (status_one_hop != BLOCK) {
                 possible_moves[count][0]   = p->line - 1;
                 possible_moves[count++][1] = p->col;
 
-                int status_two_hops = verify_house_status(p, fp, p->line - 2, p->col);
+                int status_two_hops = check_house_status(p, fp, p->line - 2, p->col);
                 if (p->line == p->initial_line && status_two_hops != BLOCK) {
                     possible_moves[count][0]   = p->line - 2;
                     possible_moves[count++][1] = p->col;
                 }
             }
 
-            int status_capture = verify_house_status(p, fp, p->line - 1, p->col + 1);
+            int status_capture = check_house_status(p, fp, p->line - 1, p->col + 1);
             if (status_capture == CAPTURE) {
                 possible_moves[count][0]   = p->line - 1;
                 possible_moves[count++][1] = p->col  + 1;
             }
 
-            status_capture = verify_house_status(p, fp, p->line - 1, p->col - 1);
+            status_capture = check_house_status(p, fp, p->line - 1, p->col - 1);
             if (status_capture == CAPTURE) {
                 possible_moves[count][0]   = p->line - 1;
                 possible_moves[count++][1] = p->col  - 1;
@@ -492,7 +499,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
     else if (p->type == ROOK) {
         int line = p->line - 1;
         while (line > -1) {
-            int house_status = verify_house_status(p, fp, line, p->col);
+            int house_status = check_house_status(p, fp, line, p->col);
             if (house_status != BLOCK) {
                 possible_moves[count][0] = line--;
                 possible_moves[count++][1] = p->col;
@@ -503,7 +510,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line + 1;
         while (line < 8) {
-            int house_status = verify_house_status(p, fp, line, p->col);
+            int house_status = check_house_status(p, fp, line, p->col);
             if (house_status != BLOCK) {
                 possible_moves[count][0] = line++;
                 possible_moves[count++][1] = p->col;
@@ -514,7 +521,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         int col = p->col - 1;
         while (col > -1) {
-            int house_status = verify_house_status(p, fp, p->line, col);
+            int house_status = check_house_status(p, fp, p->line, col);
             if (house_status != BLOCK) {
                 possible_moves[count][0] = p->line;
                 possible_moves[count++][1] = col--;
@@ -525,7 +532,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         col = p->col + 1;
         while (col < 8) {
-            int house_status = verify_house_status(p, fp, p->line, col);
+            int house_status = check_house_status(p, fp, p->line, col);
             if (house_status != BLOCK) {
                 possible_moves[count][0] = p->line;
                 possible_moves[count++][1] = col++;
@@ -538,7 +545,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
     else if (p->type == KNIGHT) {
         int line = p->line + 2;
         int col  = p->col  + 1;
-        int house_status = verify_house_status(p, fp, line, col);
+        int house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0] = line;
             possible_moves[count++][1] = col;
@@ -546,7 +553,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line + 2;
         col  = p->col  - 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0] = line;
             possible_moves[count++][1] = col;
@@ -554,7 +561,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line + 1;
         col  = p->col  + 2;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0] = line;
             possible_moves[count++][1] = col;
@@ -562,7 +569,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line + 1;
         col  = p->col  - 2;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0] = line;
             possible_moves[count++][1] = col;
@@ -570,7 +577,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line - 2;
         col  = p->col  + 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0] = line;
             possible_moves[count++][1] = col;
@@ -578,7 +585,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line - 2;
         col  = p->col  - 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0] = line;
             possible_moves[count++][1] = col;
@@ -586,7 +593,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line - 1;
         col  = p->col  + 2;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0] = line;
             possible_moves[count++][1] = col;
@@ -594,7 +601,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line - 1;
         col  = p->col  - 2;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0] = line;
             possible_moves[count++][1] = col;
@@ -605,81 +612,81 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
     else if (p->type == BISHOP) {
         int line = p->line + 1;
         int col  = p->col  + 1;
-        int house_status = verify_house_status(p, fp, line, col);
+        int house_status = check_house_status(p, fp, line, col);
         while (line < 8 && col < 8 && house_status != BLOCK) {
             possible_moves[count][0]   = line++;
             possible_moves[count++][1] = col++;
-            house_status = verify_house_status(p, fp, line, col);
+            house_status = check_house_status(p, fp, line, col);
         }
 
         line = p->line + 1;
         col  = p->col  - 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         while (line < 8 && col > -1 && house_status != BLOCK) {
             possible_moves[count][0]   = line++;
             possible_moves[count++][1] = col--;
-            house_status = verify_house_status(p, fp, line, col);
+            house_status = check_house_status(p, fp, line, col);
         }
 
         line = p->line - 1;
         col  = p->col  - 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         while (line > -1 && col > -1 && house_status != BLOCK) {
             possible_moves[count][0]   = line--;
             possible_moves[count++][1] = col--;
-            house_status = verify_house_status(p, fp, line, col);
+            house_status = check_house_status(p, fp, line, col);
         }
 
         line = p->line - 1;
         col  = p->col  + 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         while (line > -1 && col < 8 && house_status != BLOCK) {
             possible_moves[count][0]   = line--;
             possible_moves[count++][1] = col++;
-            house_status = verify_house_status(p, fp, line, col);
+            house_status = check_house_status(p, fp, line, col);
         }
     }
 
     else if (p->type == QUEEN) {
         int line = p->line + 1;
         int col  = p->col  + 1;
-        int house_status = verify_house_status(p, fp, line, col);
+        int house_status = check_house_status(p, fp, line, col);
         while (line < 8 && col < 8 && house_status != BLOCK) {
             possible_moves[count][0]   = line++;
             possible_moves[count++][1] = col++;
-            house_status = verify_house_status(p, fp, line, col);
+            house_status = check_house_status(p, fp, line, col);
         }
 
         line = p->line + 1;
         col  = p->col  - 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         while (line < 8 && col > -1 && house_status != BLOCK) {
             possible_moves[count][0]   = line++;
             possible_moves[count++][1] = col--;
-            house_status = verify_house_status(p, fp, line, col);
+            house_status = check_house_status(p, fp, line, col);
         }
 
         line = p->line - 1;
         col  = p->col  - 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         while (line > -1 && col > -1 && house_status != BLOCK) {
             possible_moves[count][0]   = line--;
             possible_moves[count++][1] = col--;
-            house_status = verify_house_status(p, fp, line, col);
+            house_status = check_house_status(p, fp, line, col);
         }
 
         line = p->line - 1;
         col  = p->col  + 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         while (line > -1 && col < 8 && house_status != BLOCK) {
             possible_moves[count][0]   = line--;
             possible_moves[count++][1] = col++;
-            house_status = verify_house_status(p, fp, line, col);
+            house_status = check_house_status(p, fp, line, col);
         }
 
         line = p->line - 1;
         while (line > -1) {
-            house_status = verify_house_status(p, fp, line, p->col);
+            house_status = check_house_status(p, fp, line, p->col);
             if (house_status != BLOCK) {
                 possible_moves[count][0] = line--;
                 possible_moves[count++][1] = p->col;
@@ -690,7 +697,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line + 1;
         while (line < 8) {
-            house_status = verify_house_status(p, fp, line, p->col);
+            house_status = check_house_status(p, fp, line, p->col);
             if (house_status != BLOCK) {
                 possible_moves[count][0] = line++;
                 possible_moves[count++][1] = p->col;
@@ -701,7 +708,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         col = p->col - 1;
         while (col > -1) {
-            house_status = verify_house_status(p, fp, p->line, col);
+            house_status = check_house_status(p, fp, p->line, col);
             if (house_status != BLOCK) {
                 possible_moves[count][0] = p->line;
                 possible_moves[count++][1] = col--;
@@ -712,7 +719,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         col = p->col + 1;
         while (col < 8) {
-            house_status = verify_house_status(p, fp, p->line, col);
+            house_status = check_house_status(p, fp, p->line, col);
             if (house_status != BLOCK) {
                 possible_moves[count][0] = p->line;
                 possible_moves[count++][1] = col++;
@@ -725,7 +732,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
     else if (p->type == KING) {
         int line = p->line - 1;
         int col  = p->col  - 1;
-        int house_status = verify_house_status(p, fp, line, col);
+        int house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0]   = line;
             possible_moves[count++][1] = col;
@@ -733,7 +740,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line - 1;
         col  = p->col;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0]   = line;
             possible_moves[count++][1] = col;
@@ -741,7 +748,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line - 1;
         col  = p->col  + 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0]   = line;
             possible_moves[count++][1] = col;
@@ -749,7 +756,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line;
         col  = p->col - 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0]   = line;
             possible_moves[count++][1] = col;
@@ -757,7 +764,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line;
         col  = p->col + 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0]   = line;
             possible_moves[count++][1] = col;
@@ -765,7 +772,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line + 1;
         col  = p->col  - 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0]   = line;
             possible_moves[count++][1] = col;
@@ -773,7 +780,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line + 1;
         col  = p->col;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0]   = line;
             possible_moves[count++][1] = col;
@@ -781,7 +788,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
         line = p->line + 1;
         col  = p->col  + 1;
-        house_status = verify_house_status(p, fp, line, col);
+        house_status = check_house_status(p, fp, line, col);
         if (house_status != BLOCK) {
             possible_moves[count][0]   = line;
             possible_moves[count++][1] = col;
@@ -813,6 +820,11 @@ int move_piece(Piece *p, int **possible_moves, wchar_t table[][8], int curr_hous
         key = getch();
     }
 
+    if (p->line == curr_house[0] && p->col == curr_house[1]) {
+      return -2;
+    }
+
+
     int ok = 0;
     int i = 0;
     while (i < 22 && possible_moves[i][0] != -1) {
@@ -829,7 +841,7 @@ int move_piece(Piece *p, int **possible_moves, wchar_t table[][8], int curr_hous
         return 0;
     }
 
-    int status_house = verify_house_status(p, fp, curr_house[0], curr_house[1]);
+    int status_house = check_house_status(p, fp, curr_house[0], curr_house[1]);
     if (status_house == CAPTURE) {
         Piece *ap = fp;
         while (ap) {
@@ -844,7 +856,7 @@ int move_piece(Piece *p, int **possible_moves, wchar_t table[][8], int curr_hous
     p->line = curr_house[0];
     p->col  = curr_house[1];
 
-    // print_table(table, fp, curr_house, NULL);
+    // print_table(table, fp, curr_house, reset_possible_moves());
 
     return 1;
 
@@ -858,17 +870,17 @@ int main() {
 
     wchar_t table[8][8];
     Piece *fp = initialize(table);
-    print_table(table, fp, curr_house, NULL);
+    print_table(table, fp, curr_house, reset_possible_moves());
 
     int turn = WHITE;
     while (!game_over(table)) {
       int ok = 0;
-      while (ok == 0) {
+      while (ok != 1) {
         Piece *selected_piece = check_available_piece(table, fp, turn, curr_house);
-        if (!selected_piece) selected_piece = select_piece(table, fp, turn, curr_house);
+        if (!selected_piece || ok == -2) selected_piece = select_piece(table, fp, turn, curr_house);
         int **possible_moves  = calculate_possible_moves(selected_piece, table, curr_house, fp);
         ok = move_piece(selected_piece, possible_moves, table, curr_house, fp);
-        print_table(table, fp, curr_house, NULL);
+        print_table(table, fp, curr_house, reset_possible_moves());
       }
       turn = (turn + 1) % 2;
     }
