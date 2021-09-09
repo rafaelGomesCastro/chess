@@ -358,6 +358,24 @@ int game_over(wchar_t table[][8]) {
     return 0;
 }
 
+Piece *check_available_piece(wchar_t table[][8], Piece *fp, int turn, int curr_house[2]) {
+  if (table[curr_house[0]][curr_house[1]] == EMPTY) return NULL;
+
+  Piece *p = fp;
+  while (p) {
+      if (p->in_table                  &&
+          p->line == curr_house[0]     &&
+          p->col  == curr_house[1]) {
+          break;
+      }
+      p = p->next;
+  }
+
+  if (p->color != turn) return NULL;
+
+  return p;
+}
+
 Piece *select_piece(wchar_t table[][8], Piece *fp, int turn, int curr_house[2]) {
 
     char str_turn[6] = "white";
@@ -375,23 +393,10 @@ Piece *select_piece(wchar_t table[][8], Piece *fp, int turn, int curr_house[2]) 
         key = getch();
     }
 
-    if (table[curr_house[0]][curr_house[1]] == EMPTY)
-        return select_piece(table, fp, turn, curr_house);
-
-    Piece *p = fp;
-    while (p) {
-        if (p->in_table                  &&
-            p->line == curr_house[0]     &&
-            p->col  == curr_house[1]) {
-            break;
-        }
-        p = p->next;
-    }
-
-    if (p->color != turn) return select_piece(table, fp, turn, curr_house);
+    Piece *p = check_available_piece(table, fp, turn, curr_house);
+    if (!p) return select_piece(table, fp, turn, curr_house);
 
     return p;
-
 }
 
 int verify_house_status(Piece *p, Piece *fp, int line, int col) {
@@ -859,7 +864,8 @@ int main() {
     while (!game_over(table)) {
       int ok = 0;
       while (ok == 0) {
-        Piece *selected_piece = select_piece(table, fp, turn, curr_house);
+        Piece *selected_piece = check_available_piece(table, fp, turn, curr_house);
+        if (!selected_piece) selected_piece = select_piece(table, fp, turn, curr_house);
         int **possible_moves  = calculate_possible_moves(selected_piece, table, curr_house, fp);
         ok = move_piece(selected_piece, possible_moves, table, curr_house, fp);
         print_table(table, fp, curr_house, NULL);
