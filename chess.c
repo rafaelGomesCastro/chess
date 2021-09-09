@@ -792,7 +792,7 @@ int **calculate_possible_moves(Piece *p, wchar_t table[][8], int curr_house[2], 
 
 }
 
-void move_piece(Piece *p, int **possible_moves, wchar_t table[][8], int curr_house[2], Piece *fp) {
+int move_piece(Piece *p, int **possible_moves, wchar_t table[][8], int curr_house[2], Piece *fp) {
 
     print_table(table,fp,curr_house,possible_moves);
 
@@ -820,7 +820,8 @@ void move_piece(Piece *p, int **possible_moves, wchar_t table[][8], int curr_hou
     }
 
     if (ok == 0) {
-        return move_piece(p, possible_moves, table, curr_house, fp);
+        // return move_piece(p, possible_moves, table, curr_house, fp);
+        return 0;
     }
 
     int status_house = verify_house_status(p, fp, curr_house[0], curr_house[1]);
@@ -838,7 +839,9 @@ void move_piece(Piece *p, int **possible_moves, wchar_t table[][8], int curr_hou
     p->line = curr_house[0];
     p->col  = curr_house[1];
 
-    print_table(table, fp, curr_house, NULL);
+    // print_table(table, fp, curr_house, NULL);
+
+    return 1;
 
 }
 
@@ -854,10 +857,14 @@ int main() {
 
     int turn = WHITE;
     while (!game_over(table)) {
+      int ok = 0;
+      while (ok == 0) {
         Piece *selected_piece = select_piece(table, fp, turn, curr_house);
         int **possible_moves  = calculate_possible_moves(selected_piece, table, curr_house, fp);
-        move_piece(selected_piece, possible_moves, table, curr_house, fp);
-        turn = (turn + 1) % 2;
+        ok = move_piece(selected_piece, possible_moves, table, curr_house, fp);
+        print_table(table, fp, curr_house, NULL);
+      }
+      turn = (turn + 1) % 2;
     }
 
     return 0;
