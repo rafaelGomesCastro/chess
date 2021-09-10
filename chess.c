@@ -60,6 +60,8 @@ struct piece {
 
 typedef struct piece Piece;
 
+int **calculate_possible_moves(Piece*, wchar_t[][8], int[2], Piece*);
+
 int getch() {
     int ch;
     struct termios oldt, newt;
@@ -362,13 +364,32 @@ void print_table(wchar_t table[][8], Piece *fp, int curr_house[2], int **possibl
 
 }
 
+int verify_check(Piece *p, wchar_t table[][8], Piece *fp) {
+  int in_check = 0;
+
+  int curr_house[2];
+  curr_house[0] = p->line;
+  curr_house[1] = p->col;
+  int **possible_moves = calculate_possible_moves(p, table, curr_house, fp);
+
+  int reverse_color = (p->color + 1) % 2;
+  Piece *king = fp;
+  while (!(king->type == KING && king->color == reverse_color)) king = king->next;
+
+  int i = 0;
+  while (possible_moves[i][0] != -1 && possible_moves[i][0] != king->line && possible_moves[i++][1] != king->col);
+  if (possible_moves[i][0] == king->line && possible_moves[i++][1] == king->col) in_check = 1;
+
+  return in_check;
+}
+
 int game_over(wchar_t table[][8]) {
     // Implement Check Mate verification
 
     return 0;
 }
 
-Piece *check_available_piece(wchar_t table[][8], Piece *fp, int turn, int curr_house[2]) {
+Piece *check_available_piece(wchar_t table[][8], Piece *fp, int turn, int curr_house[2], int in_check) {
   if (table[curr_house[0]][curr_house[1]] == EMPTY) return NULL;
 
   Piece *p = fp;
@@ -383,10 +404,16 @@ Piece *check_available_piece(wchar_t table[][8], Piece *fp, int turn, int curr_h
 
   if (p->color != turn) return NULL;
 
+  // TODO: implement movement restriction when in check
+  if (in_check) {
+    Piece *king = fp;
+    while (!(king->type == KING && king->color == turn)) king = king->next;
+  }
+
   return p;
 }
 
-Piece *select_piece(wchar_t table[][8], Piece *fp, int turn, int curr_house[2]) {
+Piece *select_piece(wchar_t table[][8], Piece *fp, int turn, int curr_house[2], int in_check) {
 
     char str_turn[6] = "white";
     if (turn == BLACK) strcpy(str_turn,"black");
@@ -403,8 +430,8 @@ Piece *select_piece(wchar_t table[][8], Piece *fp, int turn, int curr_house[2]) 
         key = getch();
     }
 
-    Piece *p = check_available_piece(table, fp, turn, curr_house);
-    if (!p) return select_piece(table, fp, turn, curr_house);
+    Piece *p = check_available_piece(table, fp, turn, curr_house, in_check);
+    if (!p) return select_piece(table, fp, turn, curr_house, in_check);
 
     return p;
 }
@@ -863,7 +890,6 @@ int move_piece(Piece *p, int **possible_moves, wchar_t table[][8], int curr_hous
 }
 
 int main() {
-
     int curr_house[2];
     curr_house[0] = 4;
     curr_house[1] = 4;
@@ -872,19 +898,22 @@ int main() {
     Piece *fp = initialize(table);
     print_table(table, fp, curr_house, reset_possible_moves());
 
+    int in_check = 0;
     int turn = WHITE;
     while (!game_over(table)) {
       int ok = 0;
+      Piece *selected_piece = NULL;
       while (ok != 1) {
-        Piece *selected_piece = check_available_piece(table, fp, turn, curr_house);
-        if (!selected_piece || ok == -2) selected_piece = select_piece(table, fp, turn, curr_house);
-        int **possible_moves  = calculate_possible_moves(selected_piece, table, curr_house, fp);
+        selected_piece = check_available_piece(table, fp, turn, curr_house);
+        if (!selected_piece || ok == -2) selected_piece = select_piece(table, fp, turn, curr_house, in_check);
+        int **possible_moves = calculate_possible_moves(selected_piece, table, curr_house, fp);
         ok = move_piece(selected_piece, possible_moves, table, curr_house, fp);
+
         print_table(table, fp, curr_house, reset_possible_moves());
       }
+      in_check = verify_check(selected_piece, table, fp);
       turn = (turn + 1) % 2;
     }
 
     return 0;
-
 }
