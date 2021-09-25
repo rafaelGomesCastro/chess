@@ -1,11 +1,16 @@
 CC = gcc
 CFLAGS = -g -Wall -O3 -lncurses
+DIR=build
+OBJFILES = $(DIR)/movements.o $(DIR)/$(TARGET).o
 TARGET=chess
 
-all: $(TARGET)
+all:
+	gcc -Wall -O0 -g -o $(TARGET) *.c
 
-$(TARGET): $(TARGET).c
-	$(CC) $(CFLAGS) -o build/$(TARGET) $(TARGET).c
-
-clean:
-	$(RM) $(TARGET)
+# all: $(TARGET)
+#
+# $(TARGET): $(OBJFILES)
+# 	$(CC) $(CFLAGS) -o
+#
+# clean:
+# 	$(RM) $(TARGET)
